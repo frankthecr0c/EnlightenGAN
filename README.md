@@ -42,9 +42,9 @@ Run
 
 ### Dataset preparing
 
-Training data [[Google Drive]](https://drive.google.com/drive/folders/1KivxOm79VidSJnJrMV9osr751UD68pCu?usp=sharing) (unpaired images collected from multiple datasets)
+Training data [[Google Drive]](https://drive.google.com/drive/folders/1fwqz8-RnTfxgIIkebFG2Ej3jQFsYECh0?usp=sharing) (unpaired images collected from multiple datasets)
 
-Testing data [[Google Drive]](https://drive.google.com/drive/folders/1PrvL8jShZ7zj2IC3fVdDxBY1oJR72iDf?usp=sharing) (including LIME, MEF, NPE, VV, DICP)
+Testing data [[Google Drive]](https://drive.google.com/open?id=1PrvL8jShZ7zj2IC3fVdDxBY1oJR72iDf) (including LIME, MEF, NPE, VV, DICP)
 
 And [[BaiduYun]](https://github.com/TAMU-VITA/EnlightenGAN/issues/28) is available now thanks to @YHLelaine!
 
@@ -65,3 +65,10 @@ If you find this work useful for you, please cite
   publisher={IEEE}
 }
 ```
+
+### DOCKER stand alone
+
+pull the docker with pytorch 10 and create ad-hoc environment
+
+```pytorch/pytorch:1.6.0-cuda10.1-cudnn7-devel```
+

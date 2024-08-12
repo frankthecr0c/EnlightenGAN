@@ -148,33 +148,34 @@ class SingleModel(BaseModel):
 
 
     def predict(self):
-        self.real_A = Variable(self.input_A, volatile=True)
-        self.real_A_gray = Variable(self.input_A_gray, volatile=True)
-        if self.opt.noise > 0:
-            self.noise = Variable(torch.cuda.FloatTensor(self.real_A.size()).normal_(mean=0, std=self.opt.noise/255.))
-            self.real_A = self.real_A + self.noise
-        if self.opt.input_linear:
-            self.real_A = (self.real_A - torch.min(self.real_A))/(torch.max(self.real_A) - torch.min(self.real_A))
-        # print(np.transpose(self.real_A.data[0].cpu().float().numpy(),(1,2,0))[:2][:2][:])
-        if self.opt.skip == 1:
-            self.fake_B, self.latent_real_A = self.netG_A.forward(self.real_A, self.real_A_gray)
-        else:
-            self.fake_B = self.netG_A.forward(self.real_A, self.real_A_gray)
-        # self.rec_A = self.netG_B.forward(self.fake_B)
+        with torch.no_grad():
+            self.real_A = Variable(self.input_A)
+            self.real_A_gray = Variable(self.input_A_gray)
+            if self.opt.noise > 0:
+                self.noise = Variable(torch.cuda.FloatTensor(self.real_A.size()).normal_(mean=0, std=self.opt.noise/255.))
+                self.real_A = self.real_A + self.noise
+            if self.opt.input_linear:
+                self.real_A = (self.real_A - torch.min(self.real_A))/(torch.max(self.real_A) - torch.min(self.real_A))
+            # print(np.transpose(self.real_A.data[0].cpu().float().numpy(),(1,2,0))[:2][:2][:])
+            if self.opt.skip == 1:
+                self.fake_B, self.latent_real_A = self.netG_A.forward(self.real_A, self.real_A_gray)
+            else:
+                self.fake_B = self.netG_A.forward(self.real_A, self.real_A_gray)
+            # self.rec_A = self.netG_B.forward(self.fake_B)
 
-        real_A = util.tensor2im(self.real_A.data)
-        fake_B = util.tensor2im(self.fake_B.data)
-        A_gray = util.atten2im(self.real_A_gray.data)
-        # rec_A = util.tensor2im(self.rec_A.data)
-        # if self.opt.skip == 1:
-        #     latent_real_A = util.tensor2im(self.latent_real_A.data)
-        #     latent_show = util.latent2im(self.latent_real_A.data)
-        #     max_image = util.max2im(self.fake_B.data, self.latent_real_A.data)
-        #     return OrderedDict([('real_A', real_A), ('fake_B', fake_B), ('latent_real_A', latent_real_A),
-        #                     ('latent_show', latent_show), ('max_image', max_image), ('A_gray', A_gray)])
-        # else:
-        #     return OrderedDict([('real_A', real_A), ('fake_B', fake_B)])
-        # return OrderedDict([('fake_B', fake_B)])
+            real_A = util.tensor2im(self.real_A.data)
+            fake_B = util.tensor2im(self.fake_B.data)
+            A_gray = util.atten2im(self.real_A_gray.data)
+            # rec_A = util.tensor2im(self.rec_A.data)
+            # if self.opt.skip == 1:
+            #     latent_real_A = util.tensor2im(self.latent_real_A.data)
+            #     latent_show = util.latent2im(self.latent_real_A.data)
+            #     max_image = util.max2im(self.fake_B.data, self.latent_real_A.data)
+            #     return OrderedDict([('real_A', real_A), ('fake_B', fake_B), ('latent_real_A', latent_real_A),
+            #                     ('latent_show', latent_show), ('max_image', max_image), ('A_gray', A_gray)])
+            # else:
+            #     return OrderedDict([('real_A', real_A), ('fake_B', fake_B)])
+            # return OrderedDict([('fake_B', fake_B)])
         return OrderedDict([('real_A', real_A), ('fake_B', fake_B)])
 
     # get image paths
