@@ -72,3 +72,9 @@ pull the docker with pytorch 10 and create ad-hoc environment
 
 ```pytorch/pytorch:1.6.0-cuda10.1-cudnn7-devel```
 
+
+### System requirements extra
+```
+sudo apt install python3-testresources
+python3 -m pip install --upgrade pip setuptools wheel
+```
