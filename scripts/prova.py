@@ -24,8 +24,8 @@ def publish_image(image_path, topic_name):
     ros_image = bridge.cv2_to_imgmsg(img, "bgr8")  # Assuming BGR image
     rospy.loginfo("Publishing image to topic: {}".format(topic_name))
     image_pub.publish(ros_image)
-    rospy.sleep(1)  # Give some time for the message to be sent
-
+    rospy.sleep(3)  # Give some time for the message to be sent
+    image_pub.publish(ros_image)
 
 if __name__ == '__main__':
     rospy.init_node('image_publisher')

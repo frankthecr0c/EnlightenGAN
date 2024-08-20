@@ -13,10 +13,11 @@ class BaseDataset(data.Dataset):
     def initialize(self, opt):
         pass
 
+
 def get_transform(opt):
     transform_list = []
     if opt.resize_or_crop == 'resize_and_crop':
-        zoom = 1 + 0.1*radom.randint(0,4)
+        zoom = 1 + 0.1*random.randint(0,4)
         osize = [int(400*zoom), int(600*zoom)]
         transform_list.append(transforms.Scale(osize, Image.BICUBIC))
         transform_list.append(transforms.RandomCrop(opt.fineSize))

@@ -2,6 +2,7 @@ import time
 import os
 import sys
 from torchvision import transforms
+import numpy as np
 from options.test_options import TestOptions
 from data.data_loader import CreateDataLoader
 from models.models import create_model
@@ -10,17 +11,34 @@ from pathlib import Path
 from pdb import set_trace as st
 from util import html
 import torchvision
-from PIL import Image
+from PIL import Image as PImage
 import matplotlib.pyplot as plt
 
 
 def image_display(visuals):
     for label, image_numpy in visuals.items():
-        img = Image.fromarray(image_numpy, 'RGB')
+        img = PImage.fromarray(image_numpy, 'RGB')
         plt.figure()
         plt.imshow(img)
         plt.show()
         # plt.show(block=False)
+
+def display_image_pil(image_tensor):
+    """Displays an image tensor using PIL (Pillow).
+
+    Args:
+        image_tensor: The image tensor to be displayed.
+    """
+
+    image_np = image_tensor.numpy()
+
+    if image_np.shape[0] == 3:
+        image_np = image_np.transpose(1, 2, 0)
+
+    image_np = (image_np * 255).astype(np.uint8)
+
+    image = PImage.fromarray(image_np)
+    image.show()
 
 
 def save_image(visuals, file_path):
@@ -34,7 +52,7 @@ def save_image(visuals, file_path):
 
     try:
         image_numpy = visuals["fake_B"]
-        img = Image.fromarray(image_numpy, 'RGB')
+        img = PImage.fromarray(image_numpy, 'RGB')
         img.save(file_path)
         print("Image saved successfully.")
     except Exception as e:

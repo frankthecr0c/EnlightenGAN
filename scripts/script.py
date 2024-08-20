@@ -39,7 +39,7 @@ if opt.train:
 
 elif opt.predict:
 	for i in range(1):
-	        os.system("python predict.py \
+	        os.system("python3 predict.py \
 	        	--dataroot ./test_dataset \
 	        	--name enlightening \
 	        	--model single \
