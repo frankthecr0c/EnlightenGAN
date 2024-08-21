@@ -60,7 +60,6 @@ class RosEnGan:
         self.B_path = self.B_paths[0 % self.B_size]
         self.B_img = self.transform(self.B_img)
 
-
     def _fake_unaligned_dataset_loader(self, cv_image):
 
         # Create A image
@@ -172,8 +171,11 @@ if __name__ == "__main__":
     opt.batchSize = 1  # test code only supports batchSize = 1
     opt.serial_batches = True  # no shuffle
     opt.no_flip = True  # no flip
-
     handler = RosEnGan(engan_opt=opt)
-    rate = rospy.Rate(10)
-    while not rospy.is_shutdown():
-        rate.sleep()
+
+    # Start ros loop
+    rospy.spin()
+
+    # rate = rospy.Rate(10)
+    # while not rospy.is_shutdown():
+    #     rate.sleep()
