@@ -1,18 +1,16 @@
-import copy
 import numpy as np
 import torch
 import rospy
 import os
-import cv2
 import time
-from copy import deepcopy
+from pathlib import Path
 from options.test_options import TestOptions
 from models.models import create_model
 from data.base_dataset import get_transform
 from data.image_folder import store_dataset
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
-
+from util.util import yaml_parser
 import torchvision.transforms as transforms
 from PIL import Image as PImage
 
@@ -37,19 +35,24 @@ def display_image_pil(image_tensor):
 
 
 class RosEnGan:
-    def __init__(self, engan_opt, encoding="rgb8", debug=False):
+    def __init__(self, engan_opt, opt_ros, debug=False):
         self.debug = debug
         self.error_flag = 0
-        self.encoding = encoding
+        self.ros_opt = opt_ros
+        self.encoding = self.ros_opt["Image"]["format"]
         self.EnGan_opt = engan_opt
         self.EnGan = create_model(engan_opt)
         self.bridge = CvBridge()
+
         # Set transform (see unaligned_dataset.py)
         self.transform = get_transform(engan_opt)
-
-        self.image_pub = rospy.Publisher("/img_enhanced", Image, queue_size=1)
-        self.image_sub = rospy.Subscriber("/img_req_enhancer", Image, self._img_callback)
         self.to_grayscale = transforms.Grayscale(num_output_channels=1)
+
+        # Define publisher/subscribers
+        self.image_pub = rospy.Publisher(self.ros_opt["Node"]["Topics"]["enhancing_out"],
+                                         Image, queue_size=1)
+        self.image_sub = rospy.Subscriber(self.ros_opt["Node"]["Topics"]["enhancing_in"],
+                                          Image, self._img_callback)
 
         # At least one B image is necessary for running (see unaligned_dataset.py)
         self.dir_B = os.path.join(self.EnGan_opt.dataroot, self.EnGan_opt.phase + 'B')
@@ -92,7 +95,6 @@ class RosEnGan:
 
         # Set input for the model
         self.EnGan.set_input(data)
-
 
         # Get the enhanced image, forwarding
         star_t = time.time()
@@ -154,9 +156,10 @@ class RosEnGan:
             self.error_flag += 60
 
         if self.error_flag == 0:
-            msg = "DONE!,  FORWARD FPS = {}\n".format(1/time_forward) + "-" * 50
+            msg = "DONE!,  FORWARD FPS = {}\n".format(1 / time_forward) + "-" * 50
         else:
-            msg = "\nErrors occurred during processing the image\n\t -> error code: {}".format(self.error_flag) + "-" * 50
+            msg = "\nErrors occurred during processing the image\n\t -> error code: {}".format(
+                self.error_flag) + "-" * 50
 
         rospy.loginfo(msg)
 
@@ -166,16 +169,20 @@ if __name__ == "__main__":
     rospy.init_node("EnlightenGAN_node", anonymous=False)
 
     # get and set option args
-    opt = TestOptions().parse()
-    opt.nThreads = 0  # test code only supports nThreads = 1
-    opt.batchSize = 1  # test code only supports batchSize = 1
-    opt.serial_batches = True  # no shuffle
-    opt.no_flip = True  # no flip
-    handler = RosEnGan(engan_opt=opt)
+    eng_opt = TestOptions().parse()
+    eng_opt.nThreads = 0  # test code only supports nThreads = 1
+    eng_opt.batchSize = 1  # test code only supports batchSize = 1
+    eng_opt.serial_batches = True  # no shuffle
+    eng_opt.no_flip = True  # no flip
+
+    # Get the ros configs, assuming they are in the config folder which is in the same level of this script
+    script_path = Path.cwd()
+    config_path = Path(script_path, "configs", "ros_config.yaml")
+    ros_opt = yaml_parser(config_path)
+
+    # Create handler
+    handler = RosEnGan(engan_opt=eng_opt, opt_ros=ros_opt)
 
     # Start ros loop
     rospy.spin()
 
-    # rate = rospy.Rate(10)
-    # while not rospy.is_shutdown():
-    #     rate.sleep()

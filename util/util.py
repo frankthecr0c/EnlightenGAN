@@ -8,7 +8,19 @@ import os
 import collections
 from torch.optim import lr_scheduler
 import torch.nn.init as init
+import yaml
+import sys
 
+
+def yaml_parser(yaml_path):
+    with open(yaml_path, "r") as stream:
+        try:
+            config_loaded = yaml.safe_load(stream)
+        except yaml.YAMLError:
+            msg = "Error while loading the yaml file : {}".format(yaml_path)
+            print(msg)
+            sys.exit(1)
+    return config_loaded
 
 # Converts a Tensor into a Numpy array
 # |imtype|: the desired type of the converted numpy array
