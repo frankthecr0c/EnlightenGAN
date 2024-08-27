@@ -48,7 +48,7 @@ class EnhancerScheduler:
 if __name__ == '__main__':
 
     # Get the configs assuming the .yaml file is stored in the "../config" folder
-    script_path = Path.cwd().parent
+    script_path = Path(__file__).resolve().parent.parent
     config_path = Path(script_path, "configs", "ros_config.yaml")
     opt = yaml_parser(config_path)
 
