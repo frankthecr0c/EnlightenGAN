@@ -1,12 +1,12 @@
 Node:
     Name: "enhancer_scheduler"
     Topics:
-        camera_out: "/bluefox_camera/image_raw"
+        camera_out: "/camera/fisheye1/image_raw"
         enhancing_in: "img_req_enhancer"
         enhancing_out: "/img_enhanced"
 
 Image:
-    format: "bgr8"
+    format: "rgb8"
 
 Scheduler:
     time_msec: 1000

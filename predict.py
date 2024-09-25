@@ -11,6 +11,7 @@ from pathlib import Path
 from pdb import set_trace as st
 from util import html
 import torchvision
+from tqdm import tqdm
 from PIL import Image as PImage
 import matplotlib.pyplot as plt
 
@@ -54,7 +55,7 @@ def save_image(visuals, file_path):
         image_numpy = visuals["fake_B"]
         img = PImage.fromarray(image_numpy, 'RGB')
         img.save(file_path)
-        print("Image saved successfully.")
+        #print("Image saved successfully.")
     except Exception as e:
         print(f"An error occurred while saving the image: {e}")
 
@@ -77,15 +78,15 @@ print(len(dataset))
 out_directory = Path("out")
 root_directory = Path(".", "test_dataset")
 star_t = time.time()
-for i, data in enumerate(dataset):
+for i, data in enumerate(tqdm(dataset)):
     model.set_input(data)
     star_t = time.time()
     visuals = model.predict()
     avg_time = time.time() - star_t
     img_path = model.get_image_paths()[0]
     filename = img_path.split("/", -1)[-1]
-    print('process image... %s' % img_path)
-    print('avg_speed= {}'.format(avg_time))
+    #print('process image... %s' % img_path)
+    #print('avg_speed= {}'.format(avg_time))
     final_path_save = Path(root_directory, out_directory, filename)
     save_image(visuals, str(final_path_save))
     # visualizer.save_images(webpage, visuals, img_path)
