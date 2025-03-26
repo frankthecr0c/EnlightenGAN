@@ -1,4 +1,5 @@
 import time
+import torch
 import os
 import sys
 from torchvision import transforms
@@ -14,7 +15,7 @@ import torchvision
 from tqdm import tqdm
 from PIL import Image as PImage
 import matplotlib.pyplot as plt
-
+import statistics
 
 def image_display(visuals):
     for label, image_numpy in visuals.items():
@@ -74,22 +75,27 @@ model = create_model(opt)
 # web_dir = os.path.join("./ablation/", opt.name, '%s_%s' % (opt.phase, opt.which_epoch))
 # webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s, Epoch = %s' % (opt.name, opt.phase, opt.which_epoch))
 # test
-print(len(dataset))
+print('*'*50)
+print(torch.cuda.is_available())
+print(torch.cuda.device_count())
+print(torch.cuda.current_device())
+print('*'*50)
 out_directory = Path("out")
 root_directory = Path(".", "test_dataset")
 star_t = time.time()
+forward_times = []
 for i, data in enumerate(tqdm(dataset)):
     model.set_input(data)
     star_t = time.time()
     visuals = model.predict()
     avg_time = time.time() - star_t
+    forward_times.append(avg_time)
     img_path = model.get_image_paths()[0]
     filename = img_path.split("/", -1)[-1]
-    #print('process image... %s' % img_path)
-    #print('avg_speed= {}'.format(avg_time))
     final_path_save = Path(root_directory, out_directory, filename)
     save_image(visuals, str(final_path_save))
     # visualizer.save_images(webpage, visuals, img_path)
     # image_display(visuals)
     # webpage.save()
 
+print('Average forward speed on {} images = {}'.format(len(forward_times), 1./statistics.mean(forward_times)))
