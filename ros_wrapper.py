@@ -8,7 +8,7 @@ from options.test_options import TestOptions
 from models.models import create_model
 from data.base_dataset import get_transform
 from data.image_folder import store_dataset
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge, CvBridgeError
 from util.util import yaml_parser
 import torchvision.transforms as transforms
@@ -50,9 +50,13 @@ class RosEnGan:
 
         # Define publisher/subscribers
         self.image_pub = rospy.Publisher(self.ros_opt["Node"]["Topics"]["enhancing_out"],
-                                         Image, queue_size=1)
+                                         CompressedImage, queue_size=1)
+
+        # self.image_pub = rospy.Publisher(self.ros_opt["Node"]["Topics"]["enhancing_out"],
+        #                                  Image, queue_size=1)
+
         self.image_sub = rospy.Subscriber(self.ros_opt["Node"]["Topics"]["enhancing_in"],
-                                          Image, self._img_callback)
+                                          Image, self._img_callback, queue_size=1)
 
         # At least one B image is necessary for running (see unaligned_dataset.py)
         self.dir_B = os.path.join(self.EnGan_opt.dataroot, self.EnGan_opt.phase + 'B')
@@ -113,7 +117,7 @@ class RosEnGan:
 
         msg = "\nNew image enhancement request!"
         self.error_flag = 0
-        rospy.loginfo(msg)
+        #rospy.loginfo(msg)
 
         try:
             cv_image_in = self.bridge.imgmsg_to_cv2(img_msg, self.encoding)
@@ -138,10 +142,11 @@ class RosEnGan:
             self.error_flag += 15
 
         msg = "Publishing Back the image on the topic: {}".format(self.image_pub.name)
-        rospy.loginfo(msg)
+        ##rospy.loginfo(msg)
 
         try:
-            ros_image_out = self.bridge.cv2_to_imgmsg(image_numpy, encoding=self.encoding)
+            # ros_image_out = self.bridge.cv2_to_imgmsg(image_numpy, encoding=self.encoding)
+            ros_image_out = self.bridge.cv2_to_compressed_imgmsg(image_numpy, encoding=self.encoding)
         except CvBridgeError as e:
             msg = "Error while trying to convert OpenCV image to ROS: {}".format(e)
             rospy.logerr(msg)
@@ -161,7 +166,7 @@ class RosEnGan:
             msg = "\nErrors occurred during processing the image\n\t -> error code: {}".format(
                 self.error_flag) + "-" * 50
 
-        rospy.loginfo(msg)
+        #rospy.loginfo(msg)
 
 
 if __name__ == "__main__":

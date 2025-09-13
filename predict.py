@@ -17,6 +17,7 @@ from PIL import Image as PImage
 import matplotlib.pyplot as plt
 import statistics
 
+
 def image_display(visuals):
     for label, image_numpy in visuals.items():
         img = PImage.fromarray(image_numpy, 'RGB')
@@ -24,6 +25,7 @@ def image_display(visuals):
         plt.imshow(img)
         plt.show()
         # plt.show(block=False)
+
 
 def display_image_pil(image_tensor):
     """Displays an image tensor using PIL (Pillow).
@@ -60,7 +62,6 @@ def save_image(visuals, file_path):
     except Exception as e:
         print(f"An error occurred while saving the image: {e}")
 
-
 opt = TestOptions().parse()
 opt.nThreads = 0   # test code only supports nThreads = 1
 opt.batchSize = 1  # test code only supports batchSize = 1
@@ -70,11 +71,13 @@ opt.no_flip = True  # no flip
 data_loader = CreateDataLoader(opt)
 dataset = data_loader.load_data()
 model = create_model(opt)
+
 # visualizer = Visualizer(opt)
 # create website
 # web_dir = os.path.join("./ablation/", opt.name, '%s_%s' % (opt.phase, opt.which_epoch))
 # webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s, Epoch = %s' % (opt.name, opt.phase, opt.which_epoch))
 # test
+
 print('*'*50)
 print(torch.cuda.is_available())
 print(torch.cuda.device_count())
@@ -94,6 +97,7 @@ for i, data in enumerate(tqdm(dataset)):
     filename = img_path.split("/", -1)[-1]
     final_path_save = Path(root_directory, out_directory, filename)
     save_image(visuals, str(final_path_save))
+
     # visualizer.save_images(webpage, visuals, img_path)
     # image_display(visuals)
     # webpage.save()
