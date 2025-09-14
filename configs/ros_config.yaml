@@ -4,7 +4,6 @@ Node:
         camera_out: "/camera/fisheye1/image_raw"
         enhancing_in: "img_req_enhancer"
         enhancing_out: "/img_enhanced"
-
 Image:
     format: "rgb8"
 
