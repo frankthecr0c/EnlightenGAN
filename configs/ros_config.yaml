@@ -6,6 +6,9 @@ Node:
         enhancing_out: "/img_enhanced"
 Image:
     format: "rgb8"
+    compressed_format: "jpeg"  # Formato immagine compressa: jpeg, png
+    quality: 99  # Qualità compressione (1-100 per JPEG, 0-9 per PNG dove 0=massima qualità)
+    show_output: false  # Mostra la finestra cv2 con l'immagine processata
 
 Scheduler:
     time_msec: 1000

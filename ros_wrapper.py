@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 import argparse  # Aggiunto
 import cv2       # Aggiunto
+import threading
 
 from options.test_options import TestOptions
 from models.models import create_model
@@ -45,6 +46,24 @@ class RosEnGan:
         self.error_flag = 0
         self.ros_opt = opt_ros
         self.encoding = self.ros_opt["Image"]["format"]
+        
+        # Parametri per l'immagine compressa
+        self.compressed_format = self.ros_opt["Image"].get("compressed_format", "jpeg").lower()
+        self.quality = self.ros_opt["Image"].get("quality", 90)
+        self.show_output = self.ros_opt["Image"].get("show_output", False)
+        
+        # Crea finestre cv2 se necessario
+        if self.show_output:
+            cv2.namedWindow("EnlightenGAN Input (Original)", cv2.WINDOW_NORMAL)
+            cv2.namedWindow("EnlightenGAN Output (Enhanced)", cv2.WINDOW_NORMAL)
+            rospy.loginfo("Finestre di visualizzazione cv2 abilitate (Input e Output)")
+        
+        # Usa un buffer per l'ultimo messaggio ricevuto + lock per thread-safety
+        self.latest_msg = None
+        self.msg_lock = threading.Lock()
+        self.new_msg_available = False
+        self.skipped_messages = 0
+        
         self.EnGan_opt = engan_opt
         self.EnGan = create_model(engan_opt)
         self.bridge = CvBridge()
@@ -78,6 +97,11 @@ class RosEnGan:
         self.B_img = self.B_imgs[0 % self.B_size]
         self.B_path = self.B_paths[0 % self.B_size]
         self.B_img = self.transform(self.B_img)
+        
+        # Avvia il thread di processing
+        self.processing_thread = threading.Thread(target=self._processing_loop, daemon=True)
+        self.processing_thread.start()
+        rospy.loginfo("Thread di processing avviato - modalità drop-frame attiva")
 
     def _fake_unaligned_dataset_loader(self, cv_image):
 
@@ -126,91 +150,128 @@ class RosEnGan:
         return image_numpy, avg_time
 
     def _img_callback(self, img_msg):
-
-        msg = "\nNew image enhancement request!"
-        self.error_flag = 0
-        #rospy.loginfo(msg)
-
-        # --- Modificato: Gestione condizionale del messaggio in ingresso ---
-        try:
-            if self.compressed:
-                # Converte CompressedImage in immagine cv2
-                np_arr = np.frombuffer(img_msg.data, np.uint8)
-                cv_image_bgr = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-                # La pipeline si aspetta un'immagine RGB, quindi convertiamo da BGR (default di OpenCV)
-                cv_image_in = cv2.cvtColor(cv_image_bgr, cv2.COLOR_BGR2RGB)
-            else:
-                # Converte Image (raw) in immagine cv2
-                cv_image_in = self.bridge.imgmsg_to_cv2(img_msg, self.encoding)
-        except (CvBridgeError, cv2.error) as e:
-            msg = "Error while trying to convert ROS image to OpenCV: {}".format(e)
-            rospy.logerr(msg)
-            self.error_flag += 1
-            return # Interrompe l'esecuzione se la conversione fallisce
-
-        try:
-            data = self._fake_unaligned_dataset_loader(cv_image_in)
-        except Exception as e:
-            msg = "Error while trying to prepare the fake data input for feeding the network: {}".format(e)
-            rospy.logerr(msg)
-            self.error_flag += 10
-            return
-
-        try:
-            image_numpy, time_forward = self._engan_process(data)
-        except Exception as e:
-            msg = "Error while feeding and forwarding the network: {}".format(e)
-            rospy.logerr(msg)
-            print(msg)
-            self.error_flag += 15
-            return
-
-        msg = "Publishing Back the image on the topic: {}".format(self.image_pub.name)
-        #rospy.loginfo(msg)
-
-        # --- Modificato: Gestione condizionale del messaggio in uscita ---
-        try:
-            if self.compressed:
-                # L'output della rete 'image_numpy' è in formato RGB.
-                # Convertilo in BGR prima di comprimerlo in JPEG.
-                image_numpy_bgr = cv2.cvtColor(image_numpy, cv2.COLOR_RGB2BGR)
-                ros_image_out = self.bridge.cv2_to_compressed_imgmsg(image_numpy_bgr, dst_format='jpg')
-            else:
-                # Invia l'immagine raw, assumendo che 'image_numpy' sia RGB e self.encoding sia 'rgb8'
-                ros_image_out = self.bridge.cv2_to_imgmsg(image_numpy, encoding=self.encoding)
-        except CvBridgeError as e:
-            msg = "Error while trying to convert OpenCV image to ROS: {}".format(e)
-            rospy.logerr(msg)
-            self.error_flag += 30
-            return
-
-        try:
-            self.image_pub.publish(ros_image_out)
-        except Exception as e:
-            msg = "Error while trying to publish the enhanced image: {}".format(e)
-            rospy.logerr(msg)
-            print(msg)
-            self.error_flag += 60
-            return
-
-        if self.error_flag == 0:
-            msg = "DONE!,  FORWARD FPS = {}\n".format(1 / time_forward) + "-" * 50
-        else:
-            msg = "\nErrors occurred during processing the image\n\t -> error code: {}".format(
-                self.error_flag) + "-" * 50
-
-        #rospy.loginfo(msg)
+        """Callback velocissimo: salva solo l'ultimo messaggio ricevuto"""
+        with self.msg_lock:
+            if self.new_msg_available:
+                self.skipped_messages += 1
+            self.latest_msg = img_msg
+            self.new_msg_available = True
+    
+    def _processing_loop(self):
+        """Loop separato che processa solo l'ultimo messaggio disponibile"""
+        rospy.loginfo("Processing loop started")
+        
+        while not rospy.is_shutdown():
+            # Controlla se c'è un nuovo messaggio da processare
+            with self.msg_lock:
+                if not self.new_msg_available:
+                    msg_to_process = None
+                else:
+                    msg_to_process = self.latest_msg
+                    self.new_msg_available = False
+                    skipped = self.skipped_messages
+                    self.skipped_messages = 0
+            
+            # Nessun messaggio da processare, aspetta un po'
+            if msg_to_process is None:
+                time.sleep(0.001)  # Sleep brevissimo per non consumare CPU
+                continue
+            
+            if skipped > 0:
+                rospy.loginfo(f"Processing latest image (skipped {skipped} frames)")
+            
+            self.error_flag = 0
+            
+            # --- Conversione messaggio ROS in cv2 ---
+            try:
+                if self.compressed:
+                    # Converte CompressedImage in immagine cv2
+                    np_arr = np.frombuffer(msg_to_process.data, np.uint8)
+                    cv_image_bgr = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+                    # La pipeline si aspetta un'immagine RGB
+                    cv_image_in = cv2.cvtColor(cv_image_bgr, cv2.COLOR_BGR2RGB)
+                else:
+                    # Converte Image (raw) in immagine cv2
+                    cv_image_in = self.bridge.imgmsg_to_cv2(msg_to_process, self.encoding)
+                
+                # Visualizza l'immagine originale se abilitato
+                if self.show_output:
+                    if self.encoding == "rgb8" or not self.compressed:
+                        cv_image_display = cv2.cvtColor(cv_image_in, cv2.COLOR_RGB2BGR)
+                    else:
+                        cv_image_display = cv_image_bgr if self.compressed else cv_image_in
+                    cv2.imshow("EnlightenGAN Input (Original)", cv_image_display)
+                    cv2.waitKey(1)
+                    
+            except (CvBridgeError, cv2.error) as e:
+                rospy.logerr(f"Error converting ROS image to OpenCV: {e}")
+                continue
+            
+            # --- Preparazione dati per la rete ---
+            try:
+                data = self._fake_unaligned_dataset_loader(cv_image_in)
+            except Exception as e:
+                rospy.logerr(f"Error preparing data for network: {e}")
+                continue
+            
+            # --- Processing con EnlightenGAN ---
+            try:
+                image_numpy, time_forward = self._engan_process(data)
+            except Exception as e:
+                rospy.logerr(f"Error during network forward: {e}")
+                continue
+            
+            # Visualizza l'immagine processata se abilitato
+            if self.show_output:
+                image_display = cv2.cvtColor(image_numpy, cv2.COLOR_RGB2BGR)
+                cv2.imshow("EnlightenGAN Output (Enhanced)", image_display)
+                cv2.waitKey(1)
+            
+            # --- Conversione output in messaggio ROS ---
+            try:
+                if self.compressed:
+                    image_numpy_bgr = cv2.cvtColor(image_numpy, cv2.COLOR_RGB2BGR)
+                    
+                    if self.compressed_format == "jpeg" or self.compressed_format == "jpg":
+                        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), self.quality]
+                        _, compressed_data = cv2.imencode('.jpg', image_numpy_bgr, encode_param)
+                        ros_image_out = CompressedImage()
+                        ros_image_out.header.stamp = rospy.Time.now()
+                        ros_image_out.format = "jpeg"
+                        ros_image_out.data = compressed_data.tobytes()
+                    elif self.compressed_format == "png":
+                        compression_level = 9 - min(9, max(0, int(self.quality / 11)))
+                        encode_param = [int(cv2.IMWRITE_PNG_COMPRESSION), compression_level]
+                        _, compressed_data = cv2.imencode('.png', image_numpy_bgr, encode_param)
+                        ros_image_out = CompressedImage()
+                        ros_image_out.header.stamp = rospy.Time.now()
+                        ros_image_out.format = "png"
+                        ros_image_out.data = compressed_data.tobytes()
+                    else:
+                        rospy.logwarn(f"Formato '{self.compressed_format}' non riconosciuto, uso JPEG")
+                        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), self.quality]
+                        _, compressed_data = cv2.imencode('.jpg', image_numpy_bgr, encode_param)
+                        ros_image_out = CompressedImage()
+                        ros_image_out.header.stamp = rospy.Time.now()
+                        ros_image_out.format = "jpeg"
+                        ros_image_out.data = compressed_data.tobytes()
+                else:
+                    ros_image_out = self.bridge.cv2_to_imgmsg(image_numpy, encoding=self.encoding)
+            except CvBridgeError as e:
+                rospy.logerr(f"Error converting OpenCV image to ROS: {e}")
+                continue
+            
+            # --- Pubblicazione ---
+            try:
+                self.image_pub.publish(ros_image_out)
+                rospy.loginfo(f"Published enhanced image - FPS: {1/time_forward:.2f}")
+            except Exception as e:
+                rospy.logerr(f"Error publishing enhanced image: {e}")
+                continue
 
 
 if __name__ == "__main__":
-   
- # --- Aggiunto: Argparse per gestire gli argomenti da console ---
-#    parser = argparse.ArgumentParser(description="EnlightenGAN ROS Node.")
-#    parser.add_argument('--compressed', action='store_true',
-#                        help='Use compressed image transport for input and output topics.')
-    # Usa parse_known_args() per ignorare gli argomenti specifici di ROS
-#    args, unknown = parser.parse_known_args()
-
+    
     # Ros node initialization
     rospy.init_node("EnlightenGAN_node", anonymous=False)
 
@@ -226,8 +287,11 @@ if __name__ == "__main__":
     config_path = Path(script_path, "configs", "ros_config.yaml")
     ros_opt = yaml_parser(config_path)
 
-    # --- Modificato: Crea l'handler passando l'argomento 'compressed' ---
-    handler = RosEnGan(engan_opt=eng_opt, opt_ros=ros_opt, compressed=eng_opt.compressed)
+    # Verifica se l'opzione compressed è presente in eng_opt, altrimenti usa False come default
+    use_compressed = getattr(eng_opt, 'compressed', False)
+    
+    # Crea l'handler passando l'argomento 'compressed'
+    handler = RosEnGan(engan_opt=eng_opt, opt_ros=ros_opt, compressed=use_compressed)
 
     # Start ros loop
     rospy.spin()
